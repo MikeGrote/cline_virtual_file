@@ -2,6 +2,19 @@
 English | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md" target="_blank">Español</a> | <a href="https://github.com/cline/cline/blob/main/locales/de/README.md" target="_blank">Deutsch</a> | <a href="https://github.com/cline/cline/blob/main/locales/ja/README.md" target="_blank">日本語</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-cn/README.md" target="_blank">简体中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-tw/README.md" target="_blank">繁體中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/ko/README.md" target="_blank">한국어</a>
 </sub></div>
 
+> **What's new in the latest push — Virtual Filesystem (VFS) Support**
+>
+> This fork extends Cline with first-class support for **virtual and remote file systems** — workspaces accessed through URI schemes other than `file://` (e.g. `vscode-remote://`, `vscode-vfs://`, or any custom provider).
+>
+> **Key changes (PR #1):**
+> - **`src/utils/fs.ts`** — New VFS abstraction layer: `isVirtualPath()`, `vfsReadFile()`, `vfsWriteFile()`, `vfsExists()`, `vfsStat()`, `vfsDelete()`. All functions route I/O to `vscode.workspace.fs` for virtual URIs and fall back to Node.js `fs/promises` for regular paths. The `vscode` module is loaded lazily so the helpers also work in the CLI and test environments.
+> - **`src/core/task/index.ts`** — Task loop updated to resolve virtual workspace roots correctly.
+> - **`src/core/task/tools/handlers/ReadFileToolHandler.ts`** — File-read tool now uses `vfsReadFile` instead of raw `fs`, enabling reads from remote/virtual files.
+> - **`src/core/workspace/WorkspaceResolver.ts`** — New helper that resolves workspace-relative paths for both local and virtual workspaces.
+> - **`src/hosts/vscode/hostbridge/window/getActiveEditor.ts`** — Active-editor detection updated to surface virtual document URIs.
+> - **`src/integrations/editor/DiffViewProvider.ts`** and **`src/integrations/misc/extract-file-content.ts` / `extract-text.ts`** — Diff and content-extraction pipelines migrated to the VFS helpers so they handle virtual files transparently.
+> - **`biome.jsonc`** — Linting rules added that ban direct `vscode.workspace.fs` calls outside the approved VFS abstraction layer (`src/utils/fs.ts`).
+
 # Cline
 <div align="center">
 <table>
