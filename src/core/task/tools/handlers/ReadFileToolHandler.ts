@@ -3,6 +3,7 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { extractFileContent, type FileContentResult } from "@integrations/misc/extract-file-content"
+import { vfsStat } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
@@ -302,8 +303,8 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			// Check if the file has been modified externally (e.g. user edited in their editor)
 			// by comparing the mtime. If it changed, treat this as a fresh read.
 			try {
-				const stat = await import("node:fs/promises").then((fs) => fs.stat(absolutePath))
-				if (stat.mtimeMs !== cached.mtime) {
+				const stat = await vfsStat(absolutePath)
+				if (stat.mtime !== cached.mtime) {
 					// File was modified externally — evict cache entry and fall through to fresh read
 					config.taskState.fileReadCache.delete(cacheKey)
 				}
@@ -382,8 +383,8 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		// Cache metadata for deduplication (no content stored — saves memory)
 		let mtime = 0
 		try {
-			const stat = await import("node:fs/promises").then((fs) => fs.stat(absolutePath))
-			mtime = stat.mtimeMs
+			const stat = await vfsStat(absolutePath)
+			mtime = stat.mtime
 		} catch {
 			// If stat fails, use 0 — the next cache hit will evict due to mtime mismatch
 		}

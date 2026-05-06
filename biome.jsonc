@@ -150,7 +150,10 @@
 				"!!src/extension.ts",
 				"!!src/integrations/git/commit-message-generator.ts",
 				"!!src/integrations/terminal/**",
-				"!!src/core/controller/ui/openWalkthrough.ts"
+				"!!src/core/controller/ui/openWalkthrough.ts",
+				// src/utils/fs.ts is the VFS abstraction layer: it centralises all
+				// vscode.workspace.fs calls so the rest of the codebase never has to.
+				"!!src/utils/fs.ts"
 			],
 			"plugins": [
 				"src/dev/grit/vscode-api.grit"

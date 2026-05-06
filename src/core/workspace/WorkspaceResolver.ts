@@ -8,6 +8,7 @@
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
+import { isVirtualPath } from "@/utils/fs"
 import { MigrationReporter, type UsageStats } from "./MigrationReporter"
 import { parseWorkspaceInlinePath } from "./utils/parseWorkspaceInlinePath"
 import { WorkspacePathAdapter } from "./WorkspacePathAdapter"
@@ -78,6 +79,15 @@ export class WorkspaceResolver {
 	 * @returns Absolute path
 	 */
 	private resolveSingleRootPath(cwd: string, relativePath: string, context?: string): string {
+		// Virtual paths (non-file:// URIs) are complete addresses and do not
+		// need to be resolved against the workspace root.
+		if (isVirtualPath(relativePath)) {
+			if (context && this.traceEnabled) {
+				Logger.debug(`[MULTI-ROOT-TRACE] ${context}: virtual path passthrough "${relativePath}"`)
+			}
+			return relativePath
+		}
+
 		// Track usage for migration planning
 		if (context) {
 			this.trackUsage(context, relativePath)
@@ -101,6 +111,14 @@ export class WorkspaceResolver {
 		workspaceRoots: WorkspaceRoot[],
 		relativePath: string,
 	): { absolutePath: string; root: WorkspaceRoot } {
+		// Virtual paths are self-contained URIs and do not need root resolution.
+		if (isVirtualPath(relativePath)) {
+			return {
+				absolutePath: relativePath,
+				root: workspaceRoots[0],
+			}
+		}
+
 		// Handle absolute paths
 		if (path.isAbsolute(relativePath)) {
 			return this.resolveAbsolutePath(workspaceRoots, relativePath)

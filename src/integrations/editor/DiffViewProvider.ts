@@ -1,6 +1,6 @@
 import { formatResponse } from "@core/prompts/responses"
 import { workspaceResolver } from "@core/workspace"
-import { createDirectoriesForFile } from "@utils/fs"
+import { createDirectoriesForFile, isVirtualPath, vfsDelete, vfsReadFile, vfsWriteFile } from "@utils/fs"
 import { getCwd } from "@utils/path"
 import * as diff from "diff"
 import * as fs from "fs/promises"
@@ -22,7 +22,7 @@ export abstract class DiffViewProvider {
 	private preDiagnostics: FileDiagnostics[] = []
 	protected relPath?: string
 	protected absolutePath?: string
-	protected fileEncoding: string = "utf8"
+	protected fileEncoding = "utf8"
 	private streamedLines: string[] = []
 	private newContent?: string
 
@@ -42,7 +42,7 @@ export abstract class DiffViewProvider {
 				filePath: this.absolutePath!,
 			})
 
-			const fileBuffer = await fs.readFile(this.absolutePath)
+			const fileBuffer = Buffer.from(await vfsReadFile(this.absolutePath))
 			this.fileEncoding = await detectEncoding(fileBuffer)
 			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
 		} else {
@@ -50,10 +50,15 @@ export abstract class DiffViewProvider {
 			this.fileEncoding = "utf8"
 		}
 		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
-		this.createdDirs = await createDirectoriesForFile(this.absolutePath)
+		// virtual filesystems manage their own directory hierarchy, so we skip this step for them
+		if (isVirtualPath(this.absolutePath)) {
+			this.createdDirs = []
+		} else {
+			this.createdDirs = await createDirectoriesForFile(this.absolutePath)
+		}
 		// make sure the file exists before we open it
 		if (!fileExists) {
-			await fs.writeFile(this.absolutePath, "")
+			await vfsWriteFile(this.absolutePath, new Uint8Array(0))
 		}
 		// get diagnostics before editing the file, we'll compare to diagnostics after editing to see if cline needs to fix anything
 		this.preDiagnostics = (await HostProvider.workspace.getDiagnostics({})).fileDiagnostics
@@ -158,7 +163,7 @@ export abstract class DiffViewProvider {
 	 *
 	 * @returns true if the file was saved.
 	 */
-	protected abstract saveDocument(): Promise<Boolean>
+	protected abstract saveDocument(): Promise<boolean>
 
 	/**
 	 * Closes all open diff views.
@@ -414,10 +419,10 @@ export abstract class DiffViewProvider {
 			// In vscode, it will not close the diff editor correctly if the file is not saved.
 			await this.saveDocument()
 			await this.closeAllDiffViews()
-			await fs.rm(this.absolutePath, { force: true })
+			await vfsDelete(this.absolutePath)
 			Logger.log(`File ${this.absolutePath} has been deleted.`)
 
-			// Remove only the directories we created, in reverse order
+			// Remove only the directories we created, in reverse order (real FS only)
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				try {
 					await fs.rmdir(this.createdDirs[i])
@@ -476,7 +481,7 @@ export abstract class DiffViewProvider {
 
 		// Delete the file
 		try {
-			await fs.rm(fileLocation, { force: true })
+			await vfsDelete(fileLocation)
 			Logger.log(`File ${fileLocation} has been deleted.`)
 		} catch (error) {
 			Logger.error(`Failed to delete file ${fileLocation}:`, error)
