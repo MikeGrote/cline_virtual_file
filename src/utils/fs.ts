@@ -3,6 +3,149 @@ import fs from "fs/promises"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 
+// ---------------------------------------------------------------------------
+// Virtual FileSystem (VFS) utilities
+// ---------------------------------------------------------------------------
+// These functions route file I/O to either the VS Code `workspace.fs` API
+// (for virtual/non-file:// URIs) or to Node.js `fs/promises` (for regular
+// filesystem paths).  The vscode module is loaded lazily so that this module
+// continues to work in the CLI and unit-test environments where vscode is
+// not available.
+// ---------------------------------------------------------------------------
+
+/** Cache the lazily-loaded vscode module (undefined = load attempted and failed). */
+let _vscode: typeof import("vscode") | null | undefined
+
+async function tryGetVscode(): Promise<typeof import("vscode") | null> {
+	if (_vscode !== undefined) {
+		return _vscode
+	}
+	try {
+		// Dynamic import – works in VS Code extension context; throws in Node-only envs.
+		_vscode = await import("vscode")
+	} catch {
+		_vscode = null
+	}
+	return _vscode
+}
+
+/**
+ * Returns true when `filePath` uses a URI scheme other than "file://".
+ * Virtual paths look like `scheme://...` (e.g. `vscode-remote://`, `ftp://`).
+ * Regular filesystem paths (absolute or relative) return false.
+ */
+export function isVirtualPath(filePath: string): boolean {
+	const match = filePath.match(/^([a-zA-Z][a-zA-Z0-9+\-.]*):\/\//)
+	if (!match) {
+		return false
+	}
+	return match[1].toLowerCase() !== "file"
+}
+
+/**
+ * Converts a path string to a `vscode.Uri`.
+ * Virtual paths are parsed directly; regular paths are converted via `Uri.file()`.
+ * Throws if the vscode module is unavailable.
+ */
+export async function toUri(filePath: string): Promise<import("vscode").Uri> {
+	const vscode = await tryGetVscode()
+	if (!vscode) {
+		throw new Error("VS Code API is not available in this environment")
+	}
+	return isVirtualPath(filePath) ? vscode.Uri.parse(filePath) : vscode.Uri.file(filePath)
+}
+
+/**
+ * Reads a file and returns its raw bytes.
+ * Routes to `vscode.workspace.fs.readFile` for virtual paths,
+ * or to `fs.readFile` for regular filesystem paths.
+ */
+export async function vfsReadFile(filePath: string): Promise<Uint8Array> {
+	if (isVirtualPath(filePath)) {
+		const vscode = await tryGetVscode()
+		if (!vscode) {
+			throw new Error(`Cannot read virtual file without VS Code API: ${filePath}`)
+		}
+		return vscode.workspace.fs.readFile(vscode.Uri.parse(filePath))
+	}
+	return fs.readFile(filePath)
+}
+
+/**
+ * Writes raw bytes to a file.
+ * Routes to `vscode.workspace.fs.writeFile` for virtual paths,
+ * or to `fs.writeFile` for regular filesystem paths.
+ */
+export async function vfsWriteFile(filePath: string, content: Uint8Array): Promise<void> {
+	if (isVirtualPath(filePath)) {
+		const vscode = await tryGetVscode()
+		if (!vscode) {
+			throw new Error(`Cannot write virtual file without VS Code API: ${filePath}`)
+		}
+		await vscode.workspace.fs.writeFile(vscode.Uri.parse(filePath), content)
+		return
+	}
+	await fs.writeFile(filePath, content)
+}
+
+/**
+ * Returns true if the path (real or virtual) exists.
+ */
+export async function vfsExists(filePath: string): Promise<boolean> {
+	if (isVirtualPath(filePath)) {
+		const vscode = await tryGetVscode()
+		if (!vscode) {
+			return false
+		}
+		try {
+			await vscode.workspace.fs.stat(vscode.Uri.parse(filePath))
+			return true
+		} catch {
+			return false
+		}
+	}
+	try {
+		await fs.access(filePath)
+		return true
+	} catch {
+		return false
+	}
+}
+
+/**
+ * Returns normalised stat information `{ mtime, size }` for a path.
+ * `mtime` is always in milliseconds.
+ */
+export async function vfsStat(filePath: string): Promise<{ mtime: number; size: number }> {
+	if (isVirtualPath(filePath)) {
+		const vscode = await tryGetVscode()
+		if (!vscode) {
+			throw new Error(`Cannot stat virtual file without VS Code API: ${filePath}`)
+		}
+		const stat = await vscode.workspace.fs.stat(vscode.Uri.parse(filePath))
+		return { mtime: stat.mtime, size: stat.size }
+	}
+	const stat = await fs.stat(filePath)
+	return { mtime: stat.mtimeMs, size: stat.size }
+}
+
+/**
+ * Deletes a file.
+ * Routes to `vscode.workspace.fs.delete` for virtual paths,
+ * or to `fs.rm` for regular filesystem paths.
+ */
+export async function vfsDelete(filePath: string): Promise<void> {
+	if (isVirtualPath(filePath)) {
+		const vscode = await tryGetVscode()
+		if (!vscode) {
+			throw new Error(`Cannot delete virtual file without VS Code API: ${filePath}`)
+		}
+		await vscode.workspace.fs.delete(vscode.Uri.parse(filePath))
+		return
+	}
+	await fs.rm(filePath, { force: true })
+}
+
 const IS_WINDOWS = /^win/.test(process.platform)
 
 /**

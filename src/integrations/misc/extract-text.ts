@@ -1,3 +1,4 @@
+import { vfsExists, vfsReadFile, vfsStat } from "@utils/fs"
 import ExcelJS from "exceljs"
 import fs from "fs/promises"
 import * as iconv from "iconv-lite"
@@ -15,23 +16,21 @@ export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string)
 	const detected = chardet.detect(fileBuffer)
 	if (typeof detected === "string") {
 		return detected
-	} else if (detected && (detected as any).encoding) {
-		return (detected as any).encoding
-	} else {
-		if (fileExtension) {
-			const isBinary = await isBinaryFile(fileBuffer).catch(() => false)
-			if (isBinary) {
-				throw new Error(`Cannot read text for file type: ${fileExtension}`)
-			}
-		}
-		return "utf8"
 	}
+	if (detected && (detected as any).encoding) {
+		return (detected as any).encoding
+	}
+	if (fileExtension) {
+		const isBinary = await isBinaryFile(fileBuffer).catch(() => false)
+		if (isBinary) {
+			throw new Error(`Cannot read text for file type: ${fileExtension}`)
+		}
+	}
+	return "utf8"
 }
 
 export async function extractTextFromFile(filePath: string): Promise<string> {
-	try {
-		await fs.access(filePath)
-	} catch (_error) {
+	if (!(await vfsExists(filePath))) {
 		throw new Error(`File not found: ${filePath}`)
 	}
 
@@ -62,12 +61,12 @@ export async function callTextExtractionFunctions(filePath: string): Promise<str
 			break
 		default:
 			// Check file size with stat() first - faster than reading entire file for size check
-			const fileStat = await fs.stat(filePath)
+			const fileStat = await vfsStat(filePath)
 			if (fileStat.size > 20 * 1000 * 1024) {
 				// 20MB limit (20 * 1000 * 1024 bytes, decimal MB)
 				throw new Error(`File is too large to read into context.`)
 			}
-			const fileBuffer = await fs.readFile(filePath)
+			const fileBuffer = Buffer.from(await vfsReadFile(filePath))
 			const encoding = await detectEncoding(fileBuffer, fileExtension)
 			content = iconv.decode(fileBuffer, encoding)
 	}
@@ -131,9 +130,8 @@ function formatCellValue(cell: ExcelJS.Cell): string {
 	if (typeof value === "object" && "formula" in value) {
 		if ("result" in value && value.result !== undefined && value.result !== null) {
 			return value.result.toString()
-		} else {
-			return `[Formula: ${value.formula}]`
 		}
+		return `[Formula: ${value.formula}]`
 	}
 
 	return value.toString()

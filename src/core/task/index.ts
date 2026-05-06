@@ -64,6 +64,7 @@ import { USER_CONTENT_TAGS } from "@shared/messages/constants"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool, READ_ONLY_TOOLS } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
+import { isVirtualPath } from "@utils/fs"
 import {
 	isClaude4PlusModelFamily,
 	isGPT5ModelFamily,
@@ -3749,6 +3750,18 @@ export class Task {
 		if (shouldShowContextWindow) {
 			details += "\n\n# Context Window Usage"
 			details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
+		}
+
+		// Add active editor info.  For virtual filesystems the URI is particularly
+		// important because the LLM needs it verbatim to call read_file / write_to_file.
+		try {
+			const activeEditorPath = (await HostProvider.window.getActiveEditor({})).filePath
+			if (activeEditorPath && isVirtualPath(activeEditorPath)) {
+				details += "\n\n# Active Editor"
+				details += `\n- URI: ${activeEditorPath}`
+			}
+		} catch {
+			// HostProvider may not be set up in all environments
 		}
 
 		details += "\n\n# Current Mode"
