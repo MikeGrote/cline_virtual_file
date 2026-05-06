@@ -90,6 +90,11 @@ export async function vfsWriteFile(filePath: string, content: Uint8Array): Promi
 
 /**
  * Returns true if the path (real or virtual) exists.
+ *
+ * For virtual paths outside the VS Code extension context (e.g. CLI or tests),
+ * this returns `false` because virtual files are only accessible through the
+ * VS Code API.  Callers that need to distinguish "file not found" from "API
+ * unavailable" should first call `isVirtualPath()` and handle accordingly.
  */
 export async function vfsExists(filePath: string): Promise<boolean> {
 	if (isVirtualPath(filePath)) {
