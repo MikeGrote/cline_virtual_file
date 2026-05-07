@@ -160,3 +160,10 @@ Get the same Cline experience with enterprise-grade controls: SSO (SAML/OIDC), g
 ## License
 
 [Apache 2.0 © 2026 Cline Bot Inc.](./LICENSE)
+
+### Apache 2.0 compliance notes for this fork
+
+- This repository is a fork and remains licensed under Apache License 2.0.
+- A full copy of the Apache 2.0 license is provided in [`LICENSE`](./LICENSE).
+- This repository currently does not include a `NOTICE` file; if one is added in upstream sources you redistribute, it must be retained according to Apache-2.0 section 4.
+- If you redistribute modified versions, keep existing license/copyright notices and mark modified files with prominent change notices as required by Apache-2.0 section 4.
