@@ -210,7 +210,7 @@ By submitting a pull request, you agree that your contributions will be licensed
 
 If you redistribute this fork or derivative works, you must comply with Apache License 2.0 Section 4:
 
-- This repository currently does not include a `NOTICE` file; if one is added in upstream sources you redistribute, it must be retained.
+- This repository currently does not include a `NOTICE` file. If a `NOTICE` file is added to this repository in the future and you redistribute this work, you must retain it.
 - For modified redistributions, retain existing license/copyright notices and mark modified files with prominent notices stating that you changed them.
 
 Remember: Contributing to Cline isn't just about writing code - it's about being part of a community that's shaping the future of AI-assisted development. Let's build something amazing together! 🚀
